@@ -1,0 +1,3 @@
+{
+  "_comment": "EDIT ME: export your working workflow from ComfyUI (Workflow > Export API) and insert the placeholders __PROMPT__ __NEGATIVE__ __INIT_IMAGE__ __GUIDE_VIDEO__ __SEED__ in the right widget values. See workflows/README.md."
+}

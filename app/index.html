@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>spritz — open film set</title>
+<style>
+  :root {
+    --bg0:#0f0f12; --bg1:#141416; --s1:#1a1a1c; --s2:#232326; --s3:#2b2b2f;
+    --line:#333338; --t1:#f0f0ee; --t2:#a8a8a4; --t3:#77777a;
+    --acc:#b7d96a; --ok:#22c55e; --err:#ef4444; --run:#eab308;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:ui-monospace,Menlo,monospace;
+  }
+  *{margin:0;box-sizing:border-box}
+  body{background:var(--bg0);color:var(--t1);font-family:var(--sans);font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  button{font:inherit;color:inherit;background:var(--s2);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+  button:hover{background:var(--s3)}
+  button.primary{background:var(--acc);color:#111;border-color:var(--acc);font-weight:600}
+  input,select,textarea{font:inherit;color:var(--t1);background:var(--s1);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%}
+  textarea{resize:vertical;min-height:70px}
+  label{display:block;color:var(--t2);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px}
+  ::file-selector-button{font:inherit;color:var(--t1);background:var(--s2);border:1px solid var(--line);border-radius:6px;padding:4px 8px;margin-right:8px;cursor:pointer}
+
+  header{display:flex;align-items:center;gap:14px;padding:8px 14px;background:var(--bg1);border-bottom:1px solid var(--line)}
+  header .logo{font-weight:700;letter-spacing:.02em}
+  header .logo span{color:var(--acc)}
+  header .env{font-family:var(--mono);font-size:11px;color:var(--t3);margin-left:auto;display:flex;gap:12px;align-items:center}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--t3);display:inline-block;margin-right:5px}
+  .dot.ok{background:var(--ok)} .dot.err{background:var(--err)}
+
+  main{flex:1;display:grid;grid-template-columns:230px 1fr 320px;min-height:0}
+  .panel{border-right:1px solid var(--line);background:var(--bg1);overflow-y:auto;padding:12px}
+  .panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:10px}
+
+  .shot-item{padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;cursor:pointer;background:var(--s1)}
+  .shot-item.active{border-color:var(--acc)}
+  .shot-item .nm{font-weight:600}
+  .shot-item .st{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px}
+
+  #board{background:var(--bg0);overflow-y:auto;padding:18px}
+  .takes{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:14px}
+  .take{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--s1)}
+  .take.selected{border-color:var(--acc)}
+  .take video,.take img{width:100%;display:block;background:#000}
+  .take .cap{padding:6px 8px;font-family:var(--mono);font-size:10px;color:var(--t2);display:flex;justify-content:space-between;align-items:center}
+  .take .note{padding:20px;font-family:var(--mono);font-size:10px;color:var(--t3)}
+  .placeholder{border:1px dashed var(--line);border-radius:8px;padding:26px;text-align:center;color:var(--t3);margin-top:14px}
+
+  #editor .title-row{display:flex;gap:8px;align-items:center}
+  #editor .title-row input{font-size:16px;font-weight:600;background:none;border:none;padding:0}
+  #timeline{border-top:1px solid var(--line);background:var(--bg1);padding:10px 14px}
+  #timeline .head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  #timeline .head h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--t3)}
+  #strip{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px}
+  .tclip{flex:0 0 auto;background:var(--s2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:11px;min-width:70px}
+  .tclip .d{font-family:var(--mono);color:var(--t3);font-size:10px}
+  .tclip.has{border-bottom:3px solid var(--acc)}
+
+  .row{display:flex;gap:8px} .row>*{flex:1}
+  .jobs .j{font-family:var(--mono);font-size:11px;padding:5px 0;border-bottom:1px solid var(--s2);color:var(--t2)}
+  .j .queued{color:var(--t3)} .j .running{color:var(--run)} .j .done{color:var(--ok)} .j .error{color:var(--err)}
+  .j .errmsg{color:var(--err)}
+  .hint{color:var(--t3);font-size:11px;margin-top:6px;line-height:1.5}
+  .empty{color:var(--t3);padding:30px;text-align:center}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">spritz<span>_</span></div>
+  <button id="new-project">New project</button>
+  <select id="project-select" style="width:180px"></select>
+  <div class="env">
+    <span><span class="dot" id="comfy-dot"></span>ComfyUI <span id="comfy-host"></span></span>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <h2>Shots</h2>
+    <div id="shot-list"></div>
+    <button id="add-shot" style="width:100%">+ Add shot</button>
+  </div>
+
+  <div id="board">
+    <div id="editor" class="empty"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Blender take</h2>
+    <div class="hint">Author the camera in Blender, export with
+      <code>blender/export_take.py</code>, drop the bundle here. The shot is wired
+      to follow the guide exactly.</div>
+    <form id="take-form">
+      <label>first-frame.png</label><input type="file" name="first_frame" accept="image/*" required>
+      <label>camera-guide.mp4</label><input type="file" name="camera_guide" accept="video/*" required>
+      <label>camera-path.json (optional)</label><input type="file" name="camera_path" accept=".json">
+      <button class="primary" style="margin-top:12px;width:100%">Import take</button>
+    </form>
+    <h2 style="margin-top:22px">Jobs</h2>
+    <div class="jobs" id="jobs"></div>
+  </div>
+</main>
+
+<div id="timeline">
+  <div class="head">
+    <h2>Timeline</h2>
+    <span class="hint" id="tl-total"></span>
+    <span style="flex:1"></span>
+    <button id="export-xml">Export XML (Premiere / Resolve)</button>
+  </div>
+  <div id="strip"></div>
+</div>
+
+<script>
+// All dynamic rendering goes through el()/textContent — no innerHTML anywhere,
+// so server-stored strings (names, prompts, errors) can never execute as markup.
+const $ = s => document.querySelector(s);
+let STATE = {projects:{}, jobs:{}}, META = {models:[],camera_moves:[]};
+let currentProject = localStorage.getItem('spritz.project') || null;
+let currentShot = null;
+
+const api = (url, opts) => fetch(url, opts).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
+const form = obj => { const f = new FormData(); for (const k in obj) f.append(k, obj[k]); return f; };
+
+function el(tag, attrs = {}, ...children) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') n.className = v;
+    else if (k === 'text') n.textContent = v;
+    else if (k.startsWith('on')) n[k] = v;
+    else if (k === 'style') n.style.cssText = v;
+    else n.setAttribute(k, v);
+  }
+  for (const c of children) if (c != null) n.append(c);
+  return n;
+}
+function replace(node, ...children) { node.replaceChildren(...children.filter(c => c != null)); }
+
+async function boot() {
+  META = await api('/api/models');
+  $('#comfy-host').textContent = new URL(META.comfyui).host;
+  api('/api/comfy/health').then(h => $('#comfy-dot').className = 'dot ' + (h.ok ? 'ok' : 'err'));
+  await refresh();
+  setInterval(refresh, 3000);
+}
+
+async function refresh() {
+  STATE = await api('/api/state');
+  const ids = Object.keys(STATE.projects);
+  if (!currentProject && ids.length) currentProject = ids[0];
+  renderProjects(); renderShots(); renderJobs(); renderTimeline();
+  const active = document.activeElement;
+  if (!active || !['TEXTAREA','INPUT','SELECT'].includes(active.tagName)) renderEditor();
+}
+
+const proj = () => STATE.projects[currentProject];
+const shot = () => proj()?.shots.find(s => s.id === currentShot);
+
+function renderProjects() {
+  const sel = $('#project-select');
+  const opts = Object.values(STATE.projects).map(p =>
+    el('option', {value: p.id, text: p.name, ...(p.id === currentProject ? {selected: ''} : {})}));
+  replace(sel, ...(opts.length ? opts : [el('option', {text: '— no project —'})]));
+}
+
+function renderShots() {
+  const p = proj();
+  const items = !p ? [] : p.shots.map(s =>
+    el('div', {class: 'shot-item' + (s.id === currentShot ? ' active' : ''),
+               onclick: () => { currentShot = s.id; renderShots(); renderEditor(); }},
+      el('div', {class: 'nm', text: s.name}),
+      el('div', {class: 'st', text: `${s.model} · ${s.duration}s · ${s.takes.length} take${s.takes.length === 1 ? '' : 's'}`})));
+  replace($('#shot-list'), ...items);
+}
+
+function renderEditor() {
+  const box = $('#editor'), s = shot();
+  if (!s) {
+    box.className = 'empty';
+    box.textContent = proj() ? 'Select or add a shot.' : 'Create a project, then add a shot.';
+    return;
+  }
+  box.className = '';
+  const nameInput = el('input', {id: 'f-name', value: s.name,
+    onchange: e => patch({name: e.target.value})});
+  const promptArea = el('textarea', {id: 'f-prompt',
+    onchange: e => patch({prompt: e.target.value})});
+  promptArea.value = s.prompt || '';
+  const modelSel = el('select', {onchange: e => patch({model: e.target.value})},
+    ...META.models.map(m => el('option', {value: m.id, text: m.name, ...(m.id === s.model ? {selected: ''} : {})})));
+  const camSel = el('select', {onchange: e => patch({camera: e.target.value})},
+    ...META.camera_moves.map(c => el('option', {text: c, ...(c === s.camera ? {selected: ''} : {})})));
+  const durInput = el('input', {type: 'number', min: 1, max: 15, value: s.duration,
+    onchange: e => patch({duration: +e.target.value})});
+
+  const fileLabel = (title, current) => {
+    const l = el('label', {text: title + (current ? ' — ' : '')});
+    if (current) l.append(el('a', {href: current, target: '_blank', text: 'set'}));
+    return l;
+  };
+
+  const takes = s.takes.length
+    ? el('div', {class: 'takes'}, ...s.takes.map(t => takeCard(s, t)))
+    : el('div', {class: 'placeholder', text: 'No takes yet — press Generate.'});
+
+  replace(box,
+    el('div', {class: 'title-row'},
+      nameInput,
+      el('button', {class: 'primary', style: 'flex:0 0 auto', text: 'Generate',
+        onclick: async () => { await api(`/api/projects/${currentProject}/shots/${s.id}/generate`, {method: 'POST'}); refresh(); }})),
+    el('label', {text: 'Prompt'}), promptArea,
+    el('div', {class: 'row'},
+      el('div', {}, el('label', {text: 'Model'}), modelSel),
+      el('div', {}, el('label', {text: 'Camera'}), camSel),
+      el('div', {}, el('label', {text: 'Duration (s)'}), durInput)),
+    el('div', {class: 'row'},
+      el('div', {}, fileLabel('Start frame', s.start_frame),
+        el('input', {type: 'file', accept: 'image/*', onchange: e => uploadTo('start_frame', e.target.files[0])})),
+      el('div', {}, fileLabel('Camera guide', s.camera_guide),
+        el('input', {type: 'file', accept: 'video/*', onchange: e => uploadTo('camera_guide', e.target.files[0])}))),
+    takes);
+}
+
+function takeCard(s, t) {
+  const sel = s.selected_take === t.job;
+  let media;
+  if (/\.(mp4|webm|mov)$/i.test(t.output)) media = el('video', {src: t.output, controls: '', loop: '', muted: ''});
+  else if (/\.(png|jpg|jpeg|webp)$/i.test(t.output)) media = el('img', {src: t.output});
+  else media = el('div', {class: 'note', text: t.note || t.output});
+  return el('div', {class: 'take' + (sel ? ' selected' : '')},
+    media,
+    el('div', {class: 'cap'},
+      el('span', {text: t.job}),
+      el('button', {text: sel ? '★ picked' : 'pick', onclick: () => patch({selected_take: t.job})})));
+}
+
+function renderJobs() {
+  const jobs = Object.values(STATE.jobs).sort((a, b) => b.created - a.created).slice(0, 12);
+  const rows = jobs.map(j => {
+    const row = el('div', {class: 'j'},
+      el('span', {class: j.status, text: j.status + ' '}),
+      ` ${j.id} · ${j.params.model}`);
+    if (j.error) row.append(el('div', {class: 'errmsg', text: j.error.slice(0, 160)}));
+    return row;
+  });
+  replace($('#jobs'), ...(rows.length ? rows : [el('div', {class: 'hint', text: 'No jobs yet.'})]));
+}
+
+function renderTimeline() {
+  const p = proj();
+  if (!p) { replace($('#strip')); $('#tl-total').textContent = ''; return; }
+  replace($('#strip'), ...p.shots.map(s =>
+    el('div', {class: 'tclip' + (s.takes.length ? ' has' : ''), title: s.name},
+      s.name, el('div', {class: 'd', text: s.duration + 's'}))));
+  const total = p.shots.reduce((a, s) => a + +s.duration, 0);
+  $('#tl-total').textContent = p.shots.length ? `${p.shots.length} shots · ${total}s` : '';
+}
+
+async function patch(obj) {
+  await api(`/api/projects/${currentProject}/shots/${currentShot}`,
+    {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(obj)});
+  refresh();
+}
+
+async function uploadTo(field, file) {
+  if (!file) return;
+  const f = new FormData(); f.append('file', file);
+  const {path} = await api('/api/upload', {method: 'POST', body: f});
+  patch({[field]: path});
+}
+
+$('#new-project').onclick = async () => {
+  const name = prompt('Project name'); if (!name) return;
+  const p = await api('/api/projects', {method: 'POST', body: form({name})});
+  currentProject = p.id; localStorage.setItem('spritz.project', p.id); refresh();
+};
+$('#project-select').onchange = e => { currentProject = e.target.value; currentShot = null; localStorage.setItem('spritz.project', currentProject); refresh(); };
+$('#add-shot').onclick = async () => {
+  if (!currentProject) return alert('Create a project first');
+  const s = await api(`/api/projects/${currentProject}/shots`,
+    {method: 'POST', body: form({name: 'Shot ' + ((proj()?.shots.length || 0) + 1)})});
+  currentShot = s.id; refresh();
+};
+$('#export-xml').onclick = () => { if (currentProject) location.href = `/api/projects/${currentProject}/export.xml`; };
+$('#take-form').onsubmit = async e => {
+  e.preventDefault();
+  if (!currentProject) return alert('Create a project first');
+  const fd = new FormData(e.target);
+  const s = await fetch(`/api/projects/${currentProject}/take-import`, {method: 'POST', body: fd}).then(r => r.json());
+  currentShot = s.id; e.target.reset(); refresh();
+};
+
+boot();
+</script>
+</body>
+</html>
