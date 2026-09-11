@@ -1,0 +1,42 @@
+<meta charset="utf-8">
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>spritz — board</title>
+<link rel="stylesheet" href="/app/board.css">
+</head>
+<body>
+<header>
+  <a class="logo" href="/">spritz<span>_</span></a>
+  <span class="crumb">board</span>
+  <select id="project-select"></select>
+  <button id="new-project">New project</button>
+  <span class="sep"></span>
+  <button data-add="text" title="T">Text</button>
+  <button data-add="subject" title="S">Subject</button>
+  <button data-add="scene" title="N">Scene</button>
+  <button data-add="group" title="B">Bin</button>
+  <button data-add="link">Link</button>
+  <label class="file"><input type="file" id="file-input" multiple hidden>Import</label>
+  <span class="env">
+    <span id="zoom-label">100%</span>
+    <span id="save-state" class="save">saved</span>
+    <span id="sse-dot" class="dot" title="events"></span>
+  </span>
+</header>
+
+<div id="canvas" tabindex="0">
+  <div id="world">
+    <svg id="edges"></svg>
+    <div id="cards"></div>
+  </div>
+  <div id="lasso" hidden></div>
+  <div id="empty" class="empty" hidden>Drop media here, double-click for a note. T text · S subject · N scene · B bin · F fit.</div>
+</div>
+
+<div id="lightbox" hidden></div>
+
+<script src="/app/board.js"></script>
+</body>
+</html>
