@@ -56,6 +56,10 @@ The ComfyUI workflow templates in `workflows/` are placeholders to adapt to your
 2. Drop the exported `spritz-take/` bundle into the right-hand panel of the UI.
 3. The shot arrives wired to a VACE control-video workflow: the model follows your exact camera.
 
+## Board
+
+An infinite wall next to the shot list: `http://127.0.0.1:4700/board`. Drop images, video (ProRes and MOV alpha included), audio, PDFs, links and notes from the Finder; masters stay untouched in `data/assets/`, the wall shows automatic proxies (HEVC 10-bit 1080p, 512 px thumbnails, waveforms). Subject cards (`@name`) and scene cards map onto spritz subjects and shots; Generate on a scene runs the usual engine and the take lands as a linked card through SSE. Everything lives in `data/boards/{project}.json`, and every action is an HTTP endpoint (`PUT /api/projects/{id}/board`, `PATCH .../board/cards`, `POST /api/board-upload`, `GET .../board/events`) so an agent can work on the wall too. Spec and roadmap: `docs/BOARD-SPEC.md`.
+
 ## Status
 
 Working skeleton, honestly labeled: UI, project/shot/take store, job queue, mock engine, ComfyUI adapter, Blender exporter and XML export are functional; the workflow JSONs must be adapted to your ComfyUI install before real renders. No cloud, no accounts, your footage stays on your disk.

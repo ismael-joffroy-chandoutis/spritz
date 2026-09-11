@@ -146,7 +146,7 @@ function drawEdges() {
 function buildCard(c) {
   const e = el('div', {class: 'card ' + c.type, 'data-id': c.id});
   const title = el('input', {class: 'title', value: c.title || '', placeholder: c.type,
-    onchange: ev => { snapshot(); c.title = ev.target.value; touch(c); if (c.type === 'subject') refreshScenes(); }});
+    onchange: ev => { snapshot(); c.title = ev.target.value; touch(c); if (c.type === 'subject') { refreshCard(c.id); refreshScenes(); } }});
   e.append(el('div', {class: 'head'}, el('span', {class: 'kind', text: c.type}), title));
   const body = el('div', {class: 'body'});
   e.append(body);

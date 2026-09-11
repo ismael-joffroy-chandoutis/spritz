@@ -56,6 +56,10 @@ Les gabarits de workflows ComfyUI dans `workflows/` sont à adapter aux nœuds i
 2. Déposez le bundle `spritz-take/` exporté dans le panneau droit de l'interface.
 3. Le plan arrive câblé sur un workflow VACE à vidéo-contrôle : le modèle suit votre caméra exacte.
 
+## Board
+
+Un mur infini à côté de la liste de plans : `http://127.0.0.1:4700/board`. On y dépose depuis le Finder images, vidéos (ProRes et MOV alpha compris), sons, PDF, liens et notes ; les masters restent intacts dans `data/assets/`, le mur n'affiche que des proxies automatiques (HEVC 10 bits 1080p, vignettes 512 px, formes d'onde). Les cartes subject (`@nom`) et scène correspondent aux subjects et aux plans de spritz ; Générer sur une scène lance le moteur habituel et la prise arrive en carte reliée par SSE. Tout vit dans `data/boards/{projet}.json`, et chaque action est un endpoint HTTP (`PUT /api/projects/{id}/board`, `PATCH .../board/cards`, `POST /api/board-upload`, `GET .../board/events`) pour qu'un agent puisse travailler sur le mur aussi. Spécification et trajectoire : `docs/BOARD-SPEC.md`.
+
 ## État
 
 Squelette fonctionnel, étiqueté honnêtement : interface, stockage projets/plans/prises, file de jobs, moteur mock, adapter ComfyUI, exporteur Blender et export XML fonctionnent ; les JSON de workflows doivent être adaptés à votre installation ComfyUI avant tout rendu réel. Pas de cloud, pas de comptes, vos images restent sur votre disque.
