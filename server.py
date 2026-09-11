@@ -21,7 +21,9 @@ from pathlib import Path
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, File, Form, UploadFile
+import re
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -356,8 +358,26 @@ VIDEO_EXT = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v", ".mxf"}
 AUDIO_EXT = {".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".aif", ".aiff"}
 
 
+PID_RE = re.compile(r"^[a-f0-9]{8}$")
+
+
+def _safe_pid(pid: str) -> str:
+    """Board ids are 8 hex chars (uuid4[:8]); anything else is refused before touching disk."""
+    if not PID_RE.match(pid):
+        raise HTTPException(400, "invalid project id")
+    return pid
+
+
+def _safe_asset(name: str) -> Path:
+    """Reduce a client-supplied name to a basename inside data/assets, or 400."""
+    p = (ASSETS / Path(name).name).resolve()
+    if not p.is_relative_to(ASSETS.resolve()) or p == ASSETS.resolve():
+        raise HTTPException(400, "invalid asset name")
+    return p
+
+
 def _board_path(pid: str) -> Path:
-    return BOARDS / f"{pid}.json"
+    return BOARDS / f"{_safe_pid(pid)}.json"
 
 
 def _load_board(pid: str) -> dict:
@@ -536,7 +556,9 @@ def _on_take_ready(pid: str, sid: str, take: dict) -> None:
     """Job finished: proxy the output, drop a take card right of its scene, link it, notify."""
     output = take.get("output", "")
     name = Path(output).name
-    src = DATA / output.lstrip("/")
+    src = (OUTPUTS / name).resolve()
+    if not src.is_relative_to(OUTPUTS.resolve()):
+        return
     kind = _asset_kind(name)
     proxies = _make_proxies(src, kind) if kind in ("video", "image") and src.exists() else {}
     params = DB["jobs"].get(take.get("job"), {}).get("params", {})
@@ -568,6 +590,7 @@ def board_page() -> str:
 
 @app.get("/api/projects/{pid}/board")
 def get_board(pid: str) -> dict:
+    _safe_pid(pid)
     with _board_lock:
         board = _load_board(pid)
         if not _board_path(pid).exists():
@@ -577,6 +600,7 @@ def get_board(pid: str) -> dict:
 
 @app.put("/api/projects/{pid}/board")
 def put_board(pid: str, board: dict) -> dict:
+    _safe_pid(pid)
     cards = [c if "created" in c else _card_defaults(c) for c in board.get("cards", [])]
     edges = [e for e in board.get("edges", []) if e.get("from") and e.get("to")]
     for c in cards:
@@ -592,6 +616,7 @@ def put_board(pid: str, board: dict) -> dict:
 def patch_cards(pid: str, body: dict) -> dict:
     """ops: [{op: add|update|delete, card: {...}} | {op: add|delete, edge: {from, to, kind}}].
     This is the surface an agent (Claude Code, MCP later) uses to work on the wall."""
+    _safe_pid(pid)
     applied = []
     with _board_lock:
         board = _load_board(pid)
@@ -639,8 +664,8 @@ def patch_cards(pid: str, body: dict) -> dict:
 @app.post("/api/board-upload")
 async def board_upload(file: UploadFile = File(...)) -> dict:
     """Store the master, answer at once with kind + dimensions, build proxies in a thread."""
-    name = f"{uuid.uuid4().hex[:6]}_{Path(file.filename).name}"
-    dest = ASSETS / name
+    name = f"{uuid.uuid4().hex[:6]}_{Path(file.filename or 'file').name}"
+    dest = _safe_asset(name)
     dest.write_bytes(await file.read())
     kind = _asset_kind(name)
     meta = _probe(dest) if kind in ("image", "video", "audio") else {}
@@ -653,12 +678,14 @@ async def board_upload(file: UploadFile = File(...)) -> dict:
 
 @app.get("/api/assets/{name}/status")
 def asset_status(name: str) -> dict:
+    master = _safe_asset(name)
+    name = master.name
     st = ASSET_STATUS.get(name)
     if st is None:
-        st = "ready" if (ASSETS / name).exists() else "missing"
+        st = "ready" if master.exists() else "missing"
     out = {"asset": f"/assets/{name}", "name": name, "status": st}
     for k, suffix in (("proxy", ".proxy.mp4"), ("thumb", ".thumb.jpg"), ("wave", ".wave.png")):
-        p = ASSETS / f"{name}{suffix}"
+        p = _safe_asset(f"{name}{suffix}")
         out[k] = f"/assets/{p.name}" if p.exists() else None
     return out
 
@@ -666,6 +693,7 @@ def asset_status(name: str) -> dict:
 @app.get("/api/projects/{pid}/board/events")
 def board_events(pid: str) -> StreamingResponse:
     """SSE: card.updated, asset.ready, take.ready. Keepalive comment every 15 s."""
+    _safe_pid(pid)
     q: "queue.Queue[str]" = queue.Queue()
     with _subs_lock:
         _subs.append((pid, q))
