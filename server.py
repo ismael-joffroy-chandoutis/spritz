@@ -39,6 +39,8 @@ for d in (DATA, ASSETS, OUTPUTS, BOARDS):
 FFMPEG = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
 FFPROBE = shutil.which("ffprobe") or "/opt/homebrew/bin/ffprobe"
 
+COMFY_TIMEOUT = 180.0   # tailnet links are slow; a 30 s cap aborted real jobs
+COMFY_JOB_DEADLINE = 1800.0
 COMFY_URL = json.loads((ROOT / "config.json").read_text())["comfyui_url"] if (ROOT / "config.json").exists() else "http://127.0.0.1:8188"
 
 # ---------------------------------------------------------------- store
@@ -110,7 +112,7 @@ def run_comfyui(job: dict) -> dict:
         raise RuntimeError(f"workflow template missing: {model['workflow']}")
     tpl = tpl_path.read_text()
 
-    with httpx.Client(timeout=30) as c:
+    with httpx.Client(timeout=COMFY_TIMEOUT) as c:
         # upload conditioning media first, ComfyUI wants server-side filenames
         for key, ph in (("start_frame", "__INIT_IMAGE__"), ("camera_guide", "__GUIDE_VIDEO__")):
             if p.get(key):
@@ -134,10 +136,16 @@ def run_comfyui(job: dict) -> dict:
         pid = r.json()["prompt_id"]
 
     # poll history
-    with httpx.Client(timeout=30) as c:
+    deadline = time.time() + COMFY_JOB_DEADLINE
+    with httpx.Client(timeout=COMFY_TIMEOUT) as c:
         while True:
+            if time.time() > deadline:
+                raise RuntimeError(f"ComfyUI job {pid} exceeded {COMFY_JOB_DEADLINE}s")
             time.sleep(3)
-            h = c.get(f"{COMFY_URL}/history/{pid}").json()
+            try:
+                h = c.get(f"{COMFY_URL}/history/{pid}").json()
+            except httpx.TimeoutException:
+                continue  # slow link (tailnet): a timed-out poll is not a failed job
             if pid not in h:
                 continue
             entry = h[pid]
